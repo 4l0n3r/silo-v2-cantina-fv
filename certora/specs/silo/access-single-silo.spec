@@ -38,6 +38,8 @@ methods {
     // ---- `ISiloOracle` ------------------------------------------------------
     // NOTE: Since `beforeQuote` is not a view function, strictly speaking this is unsound.
     function _.beforeQuote(address) external => NONDET DELETE;
+
+    function _.onFlashLoan(address _initiator, address _token, uint256 _amount, uint256 _fee, bytes  _data) external => NONDET;
 }
 
 // ---- Functions and ghosts ---------------------------------------------------
@@ -165,4 +167,29 @@ rule RA_burn_recipient_is_restricted(env e, calldataarg args, method f) filtered
         f.selector == sig:Silo0.transitionCollateral(uint256,address,ISilo.CollateralType).selector ||
         f.selector == sig:burn(address,address,uint256).selector
     );
+}
+
+
+/// @title flashloan should get the token back with fee
+rule RA_flashloan_check() {
+    env e;
+    address _receiver;
+    uint256 _amount;
+    bytes _data;
+    require _receiver != token0;
+    require _receiver != currentContract;
+
+    mathint _receiverBalanceBefore = token0.balanceOf(e, _receiver);
+    mathint totalBalanceBefore = token0.balanceOf(e,currentContract);
+    mathint flashFee = flashFee(e,token0,_amount);
+
+    // conditions can be removed after fixing the overflow & underflow issue on overidden update function
+    require _receiverBalanceBefore + _amount <= max_uint256;
+    require totalBalanceBefore + flashFee <= max_uint256;
+    require totalBalanceBefore >= _amount;
+
+    flashLoan(e,_receiver,token0,_amount,_data);
+    mathint totalBalanceAfter = token0.balanceOf(e,currentContract);
+
+    assert totalBalanceAfter >= totalBalanceBefore + flashFee;
 }
