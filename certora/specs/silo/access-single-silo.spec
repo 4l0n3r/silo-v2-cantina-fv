@@ -143,3 +143,26 @@ rule RA_deposit_recipient_is_not_restricted(address user1, address user2, uint25
 
     assert user2 !=0 => !lastReverted;
 }
+
+/// @title The burn recipient is discriminated
+/// @property user-access
+rule RA_burn_recipient_is_restricted(env e, calldataarg args, method f) filtered {
+    f -> !f.isView && !f.isPure
+}{
+    uint256 totalSupplyBefore = totalSupply();
+
+    f(e, args);
+
+    uint256 totalSupplyAfter = totalSupply();
+
+    // Ensure total supply remains unchanged unless explicitly allowed functions modify it
+    assert totalSupplyBefore > totalSupplyAfter => (
+        f.selector == sig:Silo0.withdraw(uint256,address,address,ISilo.CollateralType).selector ||
+        f.selector == sig:Silo0.redeem(uint256,address,address,ISilo.CollateralType).selector ||
+        f.selector == sig:redeem(uint256,address,address).selector ||
+        f.selector == sig:withdraw(uint256,address,address).selector ||
+        f.selector == sig:Silo0.callOnBehalfOfSilo(address,uint256,ISilo.CallType,bytes).selector ||
+        f.selector == sig:Silo0.transitionCollateral(uint256,address,ISilo.CollateralType).selector ||
+        f.selector == sig:burn(address,address,uint256).selector
+    );
+}
