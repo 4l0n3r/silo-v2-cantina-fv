@@ -193,3 +193,24 @@ rule RA_flashloan_check() {
 
     assert totalBalanceAfter >= totalBalanceBefore + flashFee;
 }
+
+/// @title The mint recipient is discriminated
+/// @property user-access
+rule RA_mint_check(env e, calldataarg args, method f) filtered {
+    f -> !f.isView && !f.isPure
+}{
+    require f.selector != sig:burn(address,address,uint256).selector
+    require f.selector != sig:callOnBehalfOfSilo(address,uint256,uint8,bytes).selector
+
+    uint256 totalSupplyBefore = totalSupply();
+    f(e, args);
+    uint256 totalSupplyAfter = totalSupply();
+
+    // Ensure total supply remains unchanged unless explicitly allowed functions modify it
+    assert totalSupplyBefore < totalSupplyAfter => (
+        f.selector == sig:deposit(uint256,address,ISilo.CollateralType).selector ||
+        f.selector == sig:mint(uint256,address,ISilo.CollateralType).selector ||
+        f.selector == sig:mint(address,address,uint256).selector ||
+        f.selector == sig:deposit(uint256,address).selector
+    );
+}
